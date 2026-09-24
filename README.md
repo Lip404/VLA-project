@@ -1,5 +1,5 @@
 # VLA-project
-# VLA‑Agent: Vision‑Language‑Action Embodied Agent
+## VLA‑Agent: Vision‑Language‑Action Embodied Agent
 > Embodied AI agent for visual‑language navigation and robot task planning, built with reinforcement learning and vision‑language foundation models.
 
 ## Project Overview
