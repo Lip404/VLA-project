@@ -32,16 +32,77 @@ pip install transformers datasets peft accelerate
 pip install clip‑torch dino‑v2
 # For habitat‑sim (simulation)
 # follow official habitat installation guide
+```
 
 ## Project Status
 > Personal research project for graduate‑school application.
-- [x] Project skeleton & repository setup
-- [ ] Vision encoder (CLIP / DINOv2) feature extraction module
-- [ ] LLM high‑level task planner prototype
-- [ ] PPO RL training pipeline based on Stable‑Baselines3
-- [ ] Habitat‑Sim / Gymnasium simulation wrapper
-- [ ] End‑to‑end agent evaluation
+
+- Project skeleton & repository setup
+- Vision encoder (CLIP / DINOv2) feature extraction module
+- LLM high‑level task planner prototype
+- PPO RL training pipeline based on Stable‑Baselines3
+- Habitat‑Sim / Gymnasium simulation wrapper
+- End‑to‑end agent evaluation
+
+## Project Structure
+
+```
+VLA‑project/
+├── src/                     # core source code
+│   ├── agent/               # VLA agent logic
+│   ├── vision_encoder/      # CLIP / DINOv2 feature extraction
+│   ├── planner/             # LLM high‑level planner
+│   ├── rl/                  # PPO training, reward function
+│   └── env_wrapper/         # simulation environment wrapper
+├── scripts/
+│   ├── train_ppo.py         # main training entry
+│   ├── eval_agent.py        # evaluation script
+│   └── run_demo.py          # quick demo
+├── configs/                 # yaml config for training hyper‑parameters
+├── docs/                    # experiment notes, literature review
+├── logs/                    # training tensorboard / monitor logs (.gitignore)
+├── checkpoints/             # model weights (.gitignore)
+└── README.md
+```
+
+## Quick Start
+
+### Train
+
+```
+python scripts/train_ppo.py --config configs/train.yaml
+```
+
+### Evaluate
+
+```
+python scripts/eval_agent.py --checkpoint checkpoints/latest.zip
+```
+
+## Experiment Metrics
+
+- Success Rate
+- SPL (Success weighted by Path Length)
+- Episode reward statistics
+- Planning accuracy of LLM high‑level instructions
+
+## Future Work
+
+- Fine‑tune vision‑language backbone with LoRA/PEFT
+- Support multi‑stage long‑horizon embodied tasks
+- Improve generalization across unseen environments
+- Compare baseline algorithms for VLN / VLA tasks
 
 ## Notes
+
 This is an ongoing personal embodied‑AI research project.
 Code will be continuously updated as experiments proceed.
+
+## References
+
+```
+[1] Habitat‑Sim
+[2] Stable‑Baselines3 PPO
+[3] CLIP, DINOv2
+[4] Embodied‑VLA related papers
+```
