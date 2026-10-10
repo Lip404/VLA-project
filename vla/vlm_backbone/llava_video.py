@@ -29,4 +29,15 @@ def run_vlm_inference(processor, model, image, prompt_text:str):
     with torch.no_grad():
         output = model.generate(**inputs, max_new_tokens=200)
     result = processor.decode(output[0], skip_special_tokens=True)
+
+    # ========= 新增过滤逻辑 =========
+    # 以 "assistant" 作为分割标记，取后面的内容
+    full_result = processor.decode(output[0], skip_special_tokens=True)
+    
+    if "assistant" in full_result:
+        result = full_result.split("assistant")[-1].strip()
+    else:
+        result = full_result
+    # =================================
+
     return result
