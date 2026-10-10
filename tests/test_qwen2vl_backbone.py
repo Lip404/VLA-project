@@ -1,4 +1,4 @@
-from vla.vlm_backbone.llava_video import load_vlm_model, run_vlm_inference
+from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_vlm_inference
 from PIL import Image
 
 if __name__ == "__main__":
