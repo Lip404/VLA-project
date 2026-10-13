@@ -219,3 +219,6 @@ __marimo__/
 
 # MacOS system file
 .DS_Store
+
+# Test assets (images, videos, do not commit binary test files)
+tests/assets/x
