@@ -1,5 +1,5 @@
 # tests/test_qwen2vl_backbone.py
-from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_image_inference
+from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_vlm_inference
 from PIL import Image
 
 
@@ -18,11 +18,11 @@ def main():
     image = Image.open(image_path).convert("RGB")
 
     print("===== Start image inference =====")
-    result = run_image_inference(
+    result = run_vlm_inference(
         model=model,
         processor=processor,
         image=image,
-        prompt=prompt
+        prompt_text=prompt
     )
 
     print("\n===== Model Output =====")
