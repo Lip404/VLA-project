@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+
 from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_vlm_inference
 from PIL import Image
 
