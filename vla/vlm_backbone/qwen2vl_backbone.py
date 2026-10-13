@@ -17,9 +17,9 @@ def load_vlm_model(model_id: str, device: str = "cpu"):
         device_map="cpu",
         attn_implementation="eager"
     )
-    return processor, model
+    return model, processor
 
-def run_vlm_inference(processor, model, image, prompt_text:str):
+def run_vlm_inference(model, processor, image, prompt_text:str):
     """
     Run single-image VLM inference.
     :param processor: vision-language processor
@@ -71,7 +71,7 @@ def sample_video_frames(video_path: str, num_frames: int = 8):
         ret, frame = cap.read()
         if not ret:
             continue
-        # opencv读出来是BGR，Qwen2VL输入需要RGB
+        # OpenCV loads frames in BGR order; Qwen2-VL expects RGB format
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         pil_img = Image.fromarray(frame_rgb)
         frame_list.append(pil_img)
@@ -79,16 +79,18 @@ def sample_video_frames(video_path: str, num_frames: int = 8):
     return frame_list
 
 def run_video_inference(model, processor, video_path: str, prompt: str, num_frames=8):
-    # 1. 从视频里采样图片帧
+    # 1. Sample frames from the input video
     frames = sample_video_frames(video_path, num_frames)
-    # 2. 构造Qwen2VL的消息格式，和图片推理保持一致
-    messages = [
-        {"role": "user", "content": [
-            {"type": "image"},
-            {"type": "text", "text": prompt}
-        ]}
-    ]
+    
+    content = []
+    for _ in frames:
+        content.append({"type": "image"})
+    content.append({"type": "text", "text": prompt})
+
+    messages = [{"role": "user", "content": content}]
+    
     text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    # Feed video frames into processor, use videos argument for temporal video input
     inputs = processor(text=[text], images=frames, return_tensors="pt").to(model.device)
 
     with torch.no_grad():

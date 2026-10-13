@@ -1,5 +1,5 @@
 # tests/test_qwen2vl_video.py
-from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_video_inference
+from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_vlm_inference, run_video_inference
 
 
 def main():
