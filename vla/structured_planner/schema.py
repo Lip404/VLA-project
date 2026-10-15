@@ -61,7 +61,7 @@ Your job is to observe what actions HAPPENED in this video, in chronological ord
 
 Rules:
 1. ONLY output valid JSON, NO extra natural language explanation, no comments outside JSON.
-2. Action must be chosen from this set: reach, grasp, move, release, rotate, push, pull
+2. Action must be chosen from this set: reach, grasp, move, release, rotate, push, pull, move_forward
 3. Record actions in the SAME TIME ORDER they appear in the video.
 4. Fill frame range if you can infer when this action occurs.
 5. Follow exactly this schema:
