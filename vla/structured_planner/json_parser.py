@@ -10,8 +10,8 @@ def extract_json_from_text(raw_text: str) -> str:
     Extract JSON block from raw model output.
     The model may wrap JSON inside markdown ```json ... ``` or add extra text.
     """
-    # Match markdown json code block
-    pattern = r"```(?:json)?\s*\n([\s\S]*?)\n```"
+    # Match markdown json code block, no mandatory newline after ```json and before ```
+    pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
     match = re.search(pattern, raw_text)
     if match:
         return match.group(1).strip()

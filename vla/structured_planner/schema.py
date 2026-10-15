@@ -14,7 +14,8 @@ VALID_OBSERVED_ACTIONS = {
     "release",
     "rotate",
     "push",
-    "pull"
+    "pull",
+    "move_forward"
 }
 
 # ==============================================
