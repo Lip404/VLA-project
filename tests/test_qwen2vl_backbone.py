@@ -1,7 +1,7 @@
 # tests/test_qwen2vl_backbone.py
 from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_vlm_inference
 from PIL import Image
-
+import torch
 
 def main():
     # ========== Configurations ==========
@@ -16,17 +16,19 @@ def main():
 
     print("===== Load test image =====")
     image = Image.open(image_path).convert("RGB")
+    image.thumbnail((512, 512))
 
     print("===== Start image inference =====")
-    result = run_vlm_inference(
-        model=model,
-        processor=processor,
-        image=image,
-        prompt_text=prompt
-    )
+    with torch.no_grad():
+        result = run_vlm_inference(
+            model=model,
+            processor=processor,
+            image=image,
+            prompt_text=prompt
+        )
 
-    print("\n===== Model Output =====")
-    print(result)
+        print("\n===== Model Output =====")
+        print(result)
 
 
 if __name__ == "__main__":

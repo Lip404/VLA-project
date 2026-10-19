@@ -13,8 +13,9 @@ def load_vlm_model(model_id: str, device: str = "cpu"):
     processor = AutoProcessor.from_pretrained(model_id)
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         model_id,
-        torch_dtype=torch.float32,
+        torch_dtype=torch.bfloat16,
         device_map="cpu",
+        low_cpu_mem_usage=True,
         attn_implementation="eager"
     )
     return model, processor
