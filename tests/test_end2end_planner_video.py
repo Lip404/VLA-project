@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
  
 from vla.structured_planner import parse_video_behavior
-from vla.vlm_backbone.qwen2vl_backbone import Qwen2VLBackbone
+from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_video_inference
  
 # -------------------------- Configuration --------------------------
 VIDEO_PATH = Path(__file__).parent / "assets" / "test_video.mp4"
@@ -59,10 +59,12 @@ def main():
         print(f"[ERROR] Video file not found: {VIDEO_PATH}")
         return
  
-    # 1. Initialize the VLM backbone
-    vlm = Qwen2VLBackbone()
-    # 2. Run inference: frame extraction + multi-frame inference are encapsulated inside
-    llm_raw_output = vlm.infer_video(
+    # 1. Load VLM model and processor
+    model, processor = load_vlm_model("Qwen/Qwen2-VL-2B-Instruct")
+    # 2. Run video inference
+    llm_raw_output = run_video_inference(
+        model=model,
+        processor=processor,
         video_path=str(VIDEO_PATH),
         prompt=SYSTEM_PROMPT,
         num_frames=NUM_FRAMES
