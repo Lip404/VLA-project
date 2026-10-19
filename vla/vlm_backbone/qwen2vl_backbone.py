@@ -83,6 +83,9 @@ def run_video_inference(model, processor, video_path: str, prompt: str, num_fram
     # 1. Sample frames from the input video
     frames = sample_video_frames(video_path, num_frames)
     
+    for frame in frames:
+        frame.thumbnail((512, 512))
+        
     content = []
     for _ in frames:
         content.append({"type": "image"})
