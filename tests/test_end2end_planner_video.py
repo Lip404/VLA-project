@@ -18,24 +18,26 @@ You are a video behavior annotator.
 Analyze the sequence of image frames to understand what the robot or agent is doing.
 You MUST output ONLY a markdown JSON code block wrapped by ```json and ```.
 Do NOT add any extra explanation, commentary, or natural language outside the code block.
- 
-Allowed action list: ["grasp", "look", "pull", "move_forward"]
+
+Allowed action list: ["reach", "grasp", "move", "release", "rotate", "push", "pull", "move_forward"]
 You can only pick action from this list, never invent new action names.
- 
+
 The JSON schema:
 {
-  "video_summary": str, # one sentence summary of what happens in the video
-  "objects_in_scene": list[str], # all important objects visible in this video
+  "video_summary": str, # one sentence summary of what happens in the video clip
+  "objects_in_scene": list[str], # all important objects visible in the video
   "action_sequence": [
     {
       "action": str,
-      "target": str | null,
       "target_object": str | null,
-      "confidence": float between 0 and 1
+      "start_frame": int | null, # approximate start frame index of this action
+      "end_frame": int | null, # approximate end frame index of this action
+      "spatial_change": str | null # description of object movement, e.g. cup moves from left to right
     }
-  ]
+  ],
+  "notes": str | null # for unclear observation or failure notes
 }
- 
+
 Valid example output:
 ```json
 {
@@ -45,9 +47,12 @@ Valid example output:
     {
       "action": "move_forward",
       "target_object": "cube block",
-      "confidence": 0.92
+      "start_frame": 0,
+      "end_frame": 4,
+      "spatial_change": "robot moves closer to the cube block"
     }
-  ]
+  ],
+  "notes": null
 }
 ```
 """
