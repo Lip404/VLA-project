@@ -81,6 +81,24 @@ Rules:
 }
 If you cannot identify any manipulation action, leave action_sequence empty and put your reason in notes.
 
+Valid example output:
+```json
+{
+  "video_summary": "The robot moves forward toward the cube block",
+  "objects_in_scene": ["cube block", "robot"],
+  "action_sequence": [
+    {
+      "action": "move_forward",
+      "target_object": "cube block",
+      "start_frame": 0,
+      "end_frame": 4,
+      "spatial_change": "robot moves closer to the cube block"
+    }
+  ],
+  "notes": null
+}
+```
+
 IMPORTANT CONSTRAINTS YOU MUST FOLLOW:
 1. NEVER infinitely repeat the same object name. List each distinct object ONLY ONCE in objects_in_scene.
 2. Merge continuous identical actions with the same action name and same target_object into ONE single entry.

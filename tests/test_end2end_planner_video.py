@@ -9,53 +9,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
  
 from vla.structured_planner import parse_video_behavior
 from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_video_inference
+from vla.schema import OBSERVE_VIDEO_SYSTEM_PROMPT
  
 # -------------------------- Configuration --------------------------
 VIDEO_PATH = Path(__file__).parent / "assets" / "test_video.mp4"
 NUM_FRAMES = 5  # Number of uniformly sampled frames, adjust as needed
-SYSTEM_PROMPT = """
-You are a video behavior annotator.
-Analyze the sequence of image frames to understand what the robot or agent is doing.
-You MUST output ONLY a markdown JSON code block wrapped by ```json and ```.
-Do NOT add any extra explanation, commentary, or natural language outside the code block.
-
-Allowed action list: ["reach", "grasp", "move", "release", "rotate", "push", "pull", "move_forward"]
-You can only pick action from this list, never invent new action names.
-
-The JSON schema:
-{
-  "video_summary": str, # one sentence summary of what happens in the video clip
-  "objects_in_scene": list[str], # all important objects visible in the video
-  "action_sequence": [
-    {
-      "action": str,
-      "target_object": str | null,
-      "start_frame": int | null, # approximate start frame index of this action
-      "end_frame": int | null, # approximate end frame index of this action
-      "spatial_change": str | null # description of object movement, e.g. cup moves from left to right
-    }
-  ],
-  "notes": str | null # for unclear observation or failure notes
-}
-
-Valid example output:
-```json
-{
-  "video_summary": "The robot moves forward toward the cube block",
-  "objects_in_scene": ["cube block", "robot"],
-  "action_sequence": [
-    {
-      "action": "move_forward",
-      "target_object": "cube block",
-      "start_frame": 0,
-      "end_frame": 4,
-      "spatial_change": "robot moves closer to the cube block"
-    }
-  ],
-  "notes": null
-}
-```
-"""
+SYSTEM_PROMPT = OBSERVE_VIDEO_SYSTEM_PROMPT
 # ------------------------------------------------------------
  
 def main():
