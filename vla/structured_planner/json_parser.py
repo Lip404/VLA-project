@@ -1,7 +1,7 @@
 # vla/structured_planner/json_parser.py
 import json
 import re
-import json_repair
+from json_repair import repair_json
 from pydantic import ValidationError
 from .schema import VideoBehaviorRecord, VALID_OBSERVED_ACTIONS
 
@@ -33,7 +33,8 @@ def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | N
     """
     json_str = extract_json_from_text(raw_model_output)
     try:
-        data = json_repair.loads(json_str)
+        fixed_json_str = repair_json(json_str)
+        data = json.loads(fixed_json_str)
     except Exception as e:
         return None, f"JSON repair & decode failed: {str(e)}"
 
