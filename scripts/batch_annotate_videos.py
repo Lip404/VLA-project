@@ -1,11 +1,14 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+
 import json
 import logging
-from pathlib import Path
 from typing import List
 
 from vla.vlm_backbone.qwen2vl_backbone import load_vlm_model, run_video_inference
 from vla.structured_planner.json_parser import parse_video_behavior
-from vla.structured_planner.schema import VideoBehaviorRecord
+from vla.structured_planner.schema import VideoBehaviorRecord, OBSERVE_VIDEO_SYSTEM_PROMPT
 
 # ===================== Configuration Section =====================
 MODEL_ID = "Qwen/Qwen2-VL-2B-Instruct"
@@ -25,41 +28,6 @@ REJECT_KEYWORDS = [
     "ambiguous",
 ]
 
-OBSERVE_VIDEO_SYSTEM_PROMPT = """
-You are a video behavior observer for robot imitation learning.
-You will receive several frames sampled from a continuous video.
-Your job is to observe what actions HAPPENED in this video, in chronological order.
-
-Rules:
-1. Output JSON wrapped inside ```json ... ``` markdown code block. No extra natural language explanation outside the code block, no comments.
-2. Action must be chosen strictly from this fixed set: reach, grasp, move, release, rotate, push, pull, move_forward
-3. Record actions in the SAME TIME ORDER they appear in the video.
-4. Fill frame range if you can infer when this action occurs.
-5. Follow exactly this schema:
-{
-  "video_summary": "short one-sentence summary of this video clip",
-  "objects_in_scene": ["list of unique distinct visible object names, each object appears only once"],
-  "action_sequence": [
-    {
-      "action": "action_name",
-      "target_object": "object name",
-      "start_frame": null or integer,
-      "end_frame": null or integer,
-      "spatial_change": "describe object position change"
-    }
-  ],
-  "notes": null
-}
-If you cannot identify any manipulation action, leave action_sequence empty and put your reason in notes.
-
-IMPORTANT CONSTRAINTS YOU MUST FOLLOW:
-1. NEVER infinitely repeat the same object name. List each distinct object ONLY ONCE in objects_in_scene.
-2. Merge continuous identical actions with the same action name and same target_object into ONE single entry.
-   Do NOT split one continuous movement into many tiny frame-wise slices.
-3. Limit the length of action_sequence to at most 4 action steps. Do NOT generate unlimited repeated actions.
-4. You must produce a fully complete, well-formed JSON. All quotes, brackets and braces must be properly closed.
-5. Do NOT leave sentences, strings or JSON structures unfinished. Stop generation right after finishing the complete JSON object.
-"""
 # =================================================================
 
 logging.basicConfig(
