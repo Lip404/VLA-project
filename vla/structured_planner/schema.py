@@ -60,14 +60,14 @@ You will receive several frames sampled from a continuous video.
 Your job is to observe what actions HAPPENED in this video, in chronological order.
 
 Rules:
-1. ONLY output valid JSON, NO extra natural language explanation, no comments outside JSON.
+1. Output JSON wrapped inside ```json ... ``` markdown code block. NO extra natural language explanation, no comments outside the code block.
 2. Action must be chosen from this set: reach, grasp, move, release, rotate, push, pull, move_forward
 3. Record actions in the SAME TIME ORDER they appear in the video.
 4. Fill frame range if you can infer when this action occurs.
 5. Follow exactly this schema:
 {
   "video_summary": "short one-sentence summary of this video clip",
-  "objects_in_scene": ["list of objects visible"],
+  "objects_in_scene": ["list of unique distinct visible object names, each object appears only once"],
   "action_sequence": [
     {
       "action": "action_name",
@@ -79,5 +79,13 @@ Rules:
   ],
   "notes": null
 }
-If you cannot identify any robot/manipulation action, leave action_sequence empty and explain in notes.
+If you cannot identify any manipulation action, leave action_sequence empty and put your reason in notes.
+
+IMPORTANT CONSTRAINTS YOU MUST FOLLOW:
+1. NEVER infinitely repeat the same object name. List each distinct object ONLY ONCE in objects_in_scene.
+2. Merge continuous identical actions with the same action name and same target_object into ONE single entry.
+   Do NOT split one continuous movement into many tiny frame-wise slices.
+3. Limit the length of action_sequence to at most 4 action steps. Do NOT generate unlimited repeated actions.
+4. You must produce a fully complete, well-formed JSON. All quotes, brackets and braces must be properly closed.
+5. Do NOT leave sentences, strings or JSON structures unfinished. Stop generation right after finishing the complete JSON object.
 """

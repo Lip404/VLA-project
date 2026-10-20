@@ -3,7 +3,7 @@ import json
 import re
 from json_repair import repair_json
 from pydantic import ValidationError
-from .schema import VideoBehaviorRecord, VALID_OBSERVED_ACTIONS
+from .schema import VideoBehaviorRecord, VALID_OBSERVED_ACTIONS, ObservedAction
 
 
 def extract_json_from_text(raw_text: str) -> str:
@@ -22,6 +22,26 @@ def extract_json_from_text(raw_text: str) -> str:
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
         return raw_text[start_idx:end_idx + 1].strip()
     return raw_text.strip()
+
+
+def merge_continuous_actions(action_items: list[ObservedAction]) -> list[ObservedAction]:
+    """
+    Merge continuous actions with identical action name and target_object.
+    Combine frame range and spatial description, then cap total entries to max 4.
+    """
+    if not action_items:
+        return action_items
+    merged = [action_items[0].model_copy()]
+    for item in action_items[1:]:
+        last = merged[-1]
+        # Merge if action name and target object are exactly the same
+        if item.action == last.action and item.target_object == last.target_object:
+            last.end_frame = item.end_frame
+            last.spatial_change = f"{last.spatial_change}; {item.spatial_change}"
+        else:
+            merged.append(item.model_copy())
+    # Keep at most 4 action entries after merging
+    return merged[:4]
 
 
 def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | None, str]:
@@ -48,4 +68,7 @@ def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | N
         if action_item.action not in VALID_OBSERVED_ACTIONS:
             return None, f"Invalid action name: {action_item.action}. Valid set: {VALID_OBSERVED_ACTIONS}"
 
+    # Merge continuous duplicate actions and limit to maximum 4 entries
+    record.action_sequence = merge_continuous_actions(record.action_sequence)
+    
     return record, ""
