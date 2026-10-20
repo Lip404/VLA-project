@@ -43,7 +43,13 @@ def run_vlm_inference(model, processor, image, prompt_text:str):
     ).to("cpu", dtype=torch.float32)
 
     with torch.no_grad():
-        output = model.generate(**inputs, max_new_tokens=200)
+        output = model.generate(
+            **inputs,
+            max_new_tokens=1024,
+            do_sample=True,
+            temperature=0.1,
+            repetition_penalty=1.05
+        )
     
     # Decode raw model output
     full_result = processor.decode(output[0], skip_special_tokens=True)
@@ -100,8 +106,10 @@ def run_video_inference(model, processor, video_path: str, prompt: str, num_fram
     with torch.no_grad():
         output = model.generate(
             **inputs,
-            max_new_tokens=256,
-            do_sample=False
+            max_new_tokens=1024,
+            do_sample=True,
+            temperature=0.1,
+            repetition_penalty=1.05
         )
     result = processor.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
     return result
