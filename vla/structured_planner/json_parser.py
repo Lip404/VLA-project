@@ -63,12 +63,12 @@ def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | N
     except ValidationError as e:
         return None, f"Schema validation failed: {str(e)}"
 
+    # Merge continuous duplicate actions and limit to maximum 4 entries
+    record.action_sequence = merge_continuous_actions(record.action_sequence)
+
     # Extra rule: check all action names are inside valid vocabulary
     for action_item in record.action_sequence:
         if action_item.action not in VALID_OBSERVED_ACTIONS:
             return None, f"Invalid action name: {action_item.action}. Valid set: {VALID_OBSERVED_ACTIONS}"
 
-    # Merge continuous duplicate actions and limit to maximum 4 entries
-    record.action_sequence = merge_continuous_actions(record.action_sequence)
-    
     return record, ""
