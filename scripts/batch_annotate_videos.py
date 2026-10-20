@@ -124,7 +124,7 @@ def batch_annotate(video_dir: str, out_dir: str):
                 logger.error("Parse failed for %s: %s", vid_path.name, err_msg)
                 continue
 
-            record = VideoBehaviorRecord(**parse_res)
+            record = parse_res
 
             valid, filter_msg = is_sample_valid(record)
             logger.info("Sample check result: valid=%s, reason=%s", valid, filter_msg)
