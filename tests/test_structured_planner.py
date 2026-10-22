@@ -24,10 +24,11 @@ def test_valid_json():
         ]
     }
     '''
-    res, err = parse_video_behavior(raw)
+    res, err, is_recovered_truncated = parse_video_behavior(raw)
     print("[PASS] test_valid_json")
     print("parsed result:", res)
     print("err msg:", err)
+    print("is_recovered_truncated:", is_recovered_truncated)
     assert err is not None and len(err) == 0
  
  
@@ -48,9 +49,11 @@ Here is the observation result:
 }
 ```
 '''
-    res, err = parse_video_behavior(raw)
+    res, err, is_recovered_truncated = parse_video_behavior(raw)
     print("\n[PASS] test_markdown_json")
     print("parsed result:", res)
+    print("err msg:", err)
+    print("is_recovered_truncated:", is_recovered_truncated)
     assert len(err) == 0
  
  
@@ -68,9 +71,10 @@ def test_malformed_json():
 ]
 }
 '''
-    res, err = parse_video_behavior(raw)
+    res, err, is_recovered_truncated = parse_video_behavior(raw)
     print("\n[PASS] test_malformed_json")
     print("error msg:", err)
+    print("is_recovered_truncated:", is_recovered_truncated)
     assert len(err) > 0
  
  
@@ -88,9 +92,10 @@ def test_missing_required_field():
 ]
 }
 '''
-    res, err = parse_video_behavior(raw)
+    res, err, is_recovered_truncated = parse_video_behavior(raw)
     print("\n[PASS] test_missing_required_field")
     print("error msg:", err)
+    print("is_recovered_truncated:", is_recovered_truncated)
     assert len(err) > 0
  
  
@@ -109,9 +114,10 @@ def test_invalid_action_name():
     ]
 }
 '''
-    res, err = parse_video_behavior(raw)
+    res, err, is_recovered_truncated = parse_video_behavior(raw)
     print("\n[PASS] test_invalid_action_name")
     print("error msg:", err)
+    print("is_recovered_truncated:", is_recovered_truncated)
     assert len(err) > 0
  
  
