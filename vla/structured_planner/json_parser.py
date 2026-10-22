@@ -44,24 +44,39 @@ def merge_continuous_actions(action_items: list[ObservedAction]) -> list[Observe
     return merged[:4]
 
 
-def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | None, str]:
+def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | None, str, bool]:
     """
     Main parse & validate entry.
-    Returns (parsed_record, error_message).
+    Returns (parsed_record, error_message, is_recovered_truncated).
     If success: error_message is empty string.
     If failed: record is None, error message explains the failure.
+    is_recovered_truncated = True means original raw JSON was broken/truncated, fixed by repair_json.
     """
     json_str = extract_json_from_text(raw_model_output)
+
+    # ===================== MODIFIED: strict raw json check BEFORE repair =====================
+    try:
+        json.loads(json_str)
+        is_raw_json_valid = True
+    except json.JSONDecodeError:
+        is_raw_json_valid = False
+    # =========================================================================================
+
     try:
         fixed_json_str = repair_json(json_str)
         data = json.loads(fixed_json_str)
     except Exception as e:
-        return None, f"JSON repair & decode failed: {str(e)}"
+        return None, f"JSON repair & decode failed: {str(e)}", False
 
     try:
         record = VideoBehaviorRecord(**data)
     except ValidationError as e:
-        return None, f"Schema validation failed: {str(e)}"
+        return None, f"Schema validation failed: {str(e)}", False
+
+    # ===================== MODIFIED: mark record and flag if raw json invalid =====================
+    if not is_raw_json_valid:
+        record.notes = "TRUNCATED_JSON: Model output was incomplete, recovered by json_repair"
+    # ==============================================================================================
 
     # Merge continuous duplicate actions and limit to maximum 4 entries
     record.action_sequence = merge_continuous_actions(record.action_sequence)
@@ -69,6 +84,6 @@ def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | N
     # Extra rule: check all action names are inside valid vocabulary
     for action_item in record.action_sequence:
         if action_item.action not in VALID_OBSERVED_ACTIONS:
-            return None, f"Invalid action name: {action_item.action}. Valid set: {VALID_OBSERVED_ACTIONS}"
+            return None, f"Invalid action name: {action_item.action}. Valid set: {VALID_OBSERVED_ACTIONS}", False
 
-    return record, ""
+    return record, "", (not is_raw_json_valid)

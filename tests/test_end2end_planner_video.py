@@ -40,11 +40,13 @@ def main():
     print("="*60)
  
     # 3. Feed the raw output into our structured parser (core glue logic)
-    result, err_msg = parse_video_behavior(llm_raw_output)
+    result, err_msg, is_recovered_truncated = parse_video_behavior(llm_raw_output)
  
     print("\n==== PARSE & SCHEMA VALIDATION RESULT ====")
     if err_msg == "":
         print("SUCCESS: JSON parsed and schema validated!")
+        if is_recovered_truncated:
+            print("WARNING: This result was recovered from truncated/incomplete JSON")
         # Print the structured result in a readable format
         print(result.model_dump_json(indent=2))
     else:

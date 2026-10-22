@@ -89,13 +89,12 @@ def batch_annotate(video_dir: str, out_dir: str):
             )
             logger.info(f"Raw model output:\n{raw_output}")
 
-            parse_res, err_msg = parse_video_behavior(raw_output)
+            parse_res, err_msg, is_recovered_truncated = parse_video_behavior(raw_output)
             if err_msg:
                 logger.error("Parse failed for %s: %s", vid_path.name, err_msg)
                 continue
 
             record = parse_res
-
             valid, filter_msg = is_sample_valid(record)
             logger.info("Sample check result: valid=%s, reason=%s", valid, filter_msg)
 
@@ -103,6 +102,7 @@ def batch_annotate(video_dir: str, out_dir: str):
             anno_data["_is_valid_sample"] = valid
             anno_data["_filter_message"] = filter_msg
             anno_data["_source_video"] = str(vid_path)
+            anno_data["_is_recovered_truncated"] = is_recovered_truncated
 
             out_json_name = f"{vid_path.stem}_anno.json"
             out_json_path = out_dir / out_json_name
@@ -110,8 +110,11 @@ def batch_annotate(video_dir: str, out_dir: str):
             with open(out_json_path, "w", encoding="utf-8") as f:
                 json.dump(anno_data, f, indent=2)
 
-            logger.info("Annotation saved -> %s", out_json_path)
-
+            if is_recovered_truncated:
+                logger.warning("This annotation was recovered from truncated/incomplete JSON: %s", out_json_name)
+            else:
+                logger.info("Annotation saved -> %s", out_json_path)
+           
         except Exception as e:
             logger.exception("Exception occurred while processing %s: %s", vid_path.name, str(e))
             continue
