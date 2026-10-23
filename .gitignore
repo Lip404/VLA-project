@@ -225,3 +225,8 @@ tests/assets/
 
 # Auto-generated annotation outputs
 annotations/
+
+export_out/
+robocasa/
+robosuite/
+*.yml
