@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import Dataset
 
 class RoboCasaVLA(Dataset):
-    def __init__(self, jsonl_path, transform=None, num_sample_frames=None):
+    def __init__(self, jsonl_path, transform=None, num_sample_frames=None, return_pil=False):
         """
         Args:
             jsonl_path: file path to the train.jsonl file
@@ -15,6 +15,7 @@ class RoboCasaVLA(Dataset):
         self.jsonl_path = Path(jsonl_path)
         self.transform = transform
         self.num_sample_frames = num_sample_frames
+        self.return_pil = return_pil
 
         self.samples = []
         with open(self.jsonl_path, "r", encoding="utf-8") as f:
@@ -46,8 +47,13 @@ class RoboCasaVLA(Dataset):
                 img = self.transform(img)
             img_list.append(img)
 
+        if self.return_pil:
+            out_images = img_list
+        else:
+            out_images = torch.stack(img_list, dim=0)
+
         ret = {
-            "images": torch.stack(img_list, dim=0),  # (T, C, H, W)
+            "images": out_images,  # (T, C, H, W)
             "instruction": item["language_instruction"],
             "episode_id": item["episode_id"],
             "view_name": item["view_name"],
