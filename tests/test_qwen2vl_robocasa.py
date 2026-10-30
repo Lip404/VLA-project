@@ -5,12 +5,15 @@ sys.path.append(str(Path(__file__).parent.parent))
 import torch
 from PIL import Image
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
+
+import importlib
+from vla import datasets
+importlib.reload(datasets)
 from vla.datasets import RoboCasaVLA
 
 # ====== 1. Load model and processor ======
 # Use 2B version, fits in 24GB Mac memory
 MODEL_NAME = "Qwen/Qwen2-VL-2B-Instruct"
-
 processor = AutoProcessor.from_pretrained(MODEL_NAME)
 model = Qwen2VLForConditionalGeneration.from_pretrained(
     MODEL_NAME,
@@ -21,14 +24,16 @@ model = Qwen2VLForConditionalGeneration.from_pretrained(
 # ====== 2. Load our dataset, take 1 sample ======
 # IMPORTANT: pass transform=None, because Qwen2VL processor will handle image resize/normalize itself.
 # Do NOT use our old Resize+ToTensor here, it will conflict with the model.
-ds = RoboCasaVLA("export_out/train.jsonl", transform=None, num_sample_frames=4, return_pil=True)
+ds = RoboCasaVLA("export_out/train_episode_with_subtask_list.jsonl", transform=None, use_sliding_window=True, window_size=8, stride=4, return_pil=True)
 sample = ds[0]
 
 # sample["images"] is already a list of PIL images (because return_pil=True)
 pil_images = sample["images"]
 instruction = sample["instruction"]
+gt_subtask = sample["subtask_labels"]
 
-print(f"Loaded {len(pil_images)} frames, instruction: {instruction}")
+print(f"Loaded {len(pil_images)} frames for current window, instruction: {instruction}")
+print(f"[Ground Truth subtask labels for this window]: {gt_subtask}")
 
 # ====== 3. Build chat prompt ======
 # Qwen2VL uses chat template: each <image> tag in text aligns with one PIL image
