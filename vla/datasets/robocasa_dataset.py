@@ -41,7 +41,7 @@ class RoboCasaVLA(Dataset):
             for ep in self.raw_episodes:
                 image_paths = ep["image_paths"]
                 total_frames = len(image_paths)
-                print(f"[DEBUG] episode {ep['episode_id']}, total_frames={total_frames}, window_size={self.window_size}")
+                #print(f"[DEBUG] episode {ep['episode_id']}, total_frames={total_frames}, window_size={self.window_size}")
 
                 if total_frames < self.window_size:
                     print(f"[DEBUG] skip this episode: frame count less than window size")
@@ -53,7 +53,7 @@ class RoboCasaVLA(Dataset):
                     continue
 
                 subtask_groups = ep["subtask_list"]
-                print(f"[DEBUG] subtask_groups count: {len(subtask_groups)}")
+                #print(f"[DEBUG] subtask_groups count: {len(subtask_groups)}")
                 lang_instr = ep["language_instruction"]
                 episode_id = ep["episode_id"]
 
@@ -72,7 +72,7 @@ class RoboCasaVLA(Dataset):
                         "episode_id": episode_id,
                         "subtask_labels": current_subtasks
                     })
-                    print(f"[DEBUG] add window start={start}, group_idx={group_idx}, subtask={current_subtasks}")
+                    #print(f"[DEBUG] add window start={start}, group_idx={group_idx}, subtask={current_subtasks}")
                     start += self.stride
 
         else:
