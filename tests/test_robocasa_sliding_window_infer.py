@@ -24,7 +24,7 @@ model = Qwen2VLForConditionalGeneration.from_pretrained(
 # ====== 2. Load our dataset, take 1 sample ======
 # IMPORTANT: pass transform=None, because Qwen2VL processor will handle image resize/normalize itself.
 # Do NOT use our old Resize+ToTensor here, it will conflict with the model.
-ds = RoboCasaVLA("export_out/train_episode_with_subtask_list.jsonl", transform=None, use_sliding_window=True, window_size=8, stride=4, return_pil=True)
+ds = RoboCasaVLA("exported_frames/train_episode_with_subtask_list.jsonl", transform=None, use_sliding_window=True, window_size=8, stride=4, return_pil=True)
 sample = ds[0]
 
 # sample["images"] is already a list of PIL images (because return_pil=True)

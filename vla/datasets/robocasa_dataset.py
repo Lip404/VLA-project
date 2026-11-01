@@ -144,7 +144,7 @@ if __name__ == "__main__":
     # Test sliding window mode for new jsonl with subtask_list field
     print("=== Test sliding window mode (jsonl with subtask_list) ===")
     ds_win = RoboCasaVLA(
-        "export_out/train_episode_with_subtask_list.jsonl",
+        "exported_frames/train_episode_with_subtask_list.jsonl",
         transform=None,
         use_sliding_window=True,
         window_size=8,

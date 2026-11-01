@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-OUTPUT_ROOT = Path("export_out")
+OUTPUT_ROOT = Path("exported_frames")
 TRAIN_JSONL_PATH = OUTPUT_ROOT / "train.jsonl"
 VIEWS = [
     "observation.images.robot0_agentview_left",

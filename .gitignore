@@ -224,9 +224,9 @@ __marimo__/
 tests/assets/
 
 # Auto-generated annotation outputs
-annotations/
+anno_outputs/
 
-export_out/
+exported_frames/
 robocasa/
 robosuite/
 *.yml

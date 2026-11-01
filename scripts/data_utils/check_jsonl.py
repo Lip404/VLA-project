@@ -2,7 +2,7 @@ import json
 from PIL import Image
 
 # Path to the jsonl annotation file
-jsonl_path = "export_out/train.jsonl"
+jsonl_path = "exported_frames/train.jsonl"
 
 # Open and read all lines from the jsonl file
 with open(jsonl_path, "r", encoding="utf-8") as f:
