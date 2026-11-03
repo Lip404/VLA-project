@@ -1,6 +1,5 @@
 import argparse
 import json
-import re
 from pathlib import Path
 from tqdm import tqdm
 import math
@@ -8,26 +7,6 @@ import math
 import torch
 from PIL import Image
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
-
-
-def clean_llm_json_array(raw_text: str) -> str:
-    """
-    Extract and clean JSON array [...] from LLM raw output.
-    Fix newlines, chinese quotes, trailing comma, single quote.
-    """
-    match = re.search(r"\[.*?\]", raw_text, re.DOTALL)
-    if not match:
-        raise ValueError("Cannot find JSON array bracket [] in output")
-    json_str = match.group(0)
-    # replace chinese quote
-    json_str = json_str.replace("“", '"').replace("”", '"')
-    # replace single quote to double quote
-    json_str = json_str.replace("'", '"')
-    # remove newline / tab
-    json_str = json_str.replace("\n", "").replace("\t", "")
-    # remove trailing comma before closing bracket: [a, b, ] → [a, b]
-    json_str = re.sub(r",\s*\]", "]", json_str)
-    return json_str
 
 
 def load_vlm(model_name: str = "Qwen/Qwen2-VL-2B-Instruct", device: str = "cpu"):
@@ -112,7 +91,6 @@ def generate_subtask_sequence(processor, model, pil_images, instruction, device=
             do_sample=False
         )
     raw_out = processor.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
-    raw_out = raw_out.strip()
     raw_out = raw_out.strip()
     subtask_list = [s.strip() for s in raw_out.split(",") if s.strip()]
     return subtask_list
