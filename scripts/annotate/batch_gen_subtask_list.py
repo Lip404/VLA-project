@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 from pathlib import Path
 from tqdm import tqdm
 import math
@@ -7,6 +8,26 @@ import math
 import torch
 from PIL import Image
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+
+
+def clean_llm_json_array(raw_text: str) -> str:
+    """
+    Extract and clean JSON array [...] from LLM raw output.
+    Fix newlines, chinese quotes, trailing comma, single quote.
+    """
+    match = re.search(r"\[.*?\]", raw_text, re.DOTALL)
+    if not match:
+        raise ValueError("Cannot find JSON array bracket [] in output")
+    json_str = match.group(0)
+    # replace chinese quote
+    json_str = json_str.replace("“", '"').replace("”", '"')
+    # replace single quote to double quote
+    json_str = json_str.replace("'", '"')
+    # remove newline / tab
+    json_str = json_str.replace("\n", "").replace("\t", "")
+    # remove trailing comma before closing bracket: [a, b, ] → [a, b]
+    json_str = re.sub(r",\s*\]", "]", json_str)
+    return json_str
 
 
 def load_vlm(model_name: str = "Qwen/Qwen2-VL-2B-Instruct", device: str = "cpu"):
@@ -62,9 +83,10 @@ def generate_subtask_sequence(processor, model, pil_images, instruction, device=
         "You are an observer for robot manipulation tasks. "
         "These images are sequential frames from one complete robot episode. "
         f"The high‑level task instruction: {instruction}.\n"
-        "Output a JSON array only, which contains ordered, concise sentences for every sequential subtask the robot executes. "
-        "Do not output any extra explanation, markdown, or text outside the json array."
-        "Example: [\"robot approaches bottle\", \"robot grasps bottle\", \"robot lifts bottle\"]"
+        "Split this task into ordered concise subtasks. "
+        "RULES: Output ONLY subtask sentences separated by a single comma. "
+        "Do NOT use brackets, quotes, markdown, explanation, line breaks. "
+        "Example output: robot approaches bottle, robot grasps bottle, robot lifts bottle"
     )
 
     messages = [
@@ -87,17 +109,12 @@ def generate_subtask_sequence(processor, model, pil_images, instruction, device=
         output = model.generate(
             **inputs,
             max_new_tokens=256,
-            temperature=0.1,
             do_sample=False
         )
     raw_out = processor.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
     raw_out = raw_out.strip()
-    start = raw_out.find("[")
-    end = raw_out.rfind("]")
-    if start == -1 or end == -1:
-        raise ValueError(f"Model output cannot parse as array: {raw_out}")
-    json_str = raw_out[start:end+1]
-    subtask_list = json.loads(json_str)
+    raw_out = raw_out.strip()
+    subtask_list = [s.strip() for s in raw_out.split(",") if s.strip()]
     return subtask_list
 
 
