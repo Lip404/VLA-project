@@ -10,7 +10,7 @@ BASE_VIDEO_PATH = Path("/Users/qianliaopeng/VLA_local/VLA-project/robocasa/datas
 BASE_PARQUET_PATH = Path("/Users/qianliaopeng/VLA_local/VLA-project/robocasa/datasets/v1.0/target/atomic/PickPlaceCounterToCabinet/20250811/lerobot/data/chunk-000")
 BASE_EXTRAS_PATH = Path("/Users/qianliaopeng/VLA_local/VLA-project/robocasa/datasets/v1.0/target/atomic/PickPlaceCounterToCabinet/20250811/lerobot/extras")
 
-OUTPUT_ROOT = Path("export_out")
+OUTPUT_ROOT = Path("exported_frames")
 VIEWS = [
     "observation.images.robot0_agentview_left",
     "observation.images.robot0_agentview_right"
@@ -101,7 +101,7 @@ def main():
         if f.startswith("episode_") and f.endswith(".mp4")
     ])
     print(f"Found {len(video_files)} episodes to export")
-    for fname in video_files[:5]:
+    for fname in video_files:
         export_episode(fname)
     print("✅ All export finished!")
 
