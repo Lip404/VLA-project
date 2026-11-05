@@ -230,3 +230,5 @@ exported_frames/
 robocasa/
 robosuite/
 *.yml
+
+weights/
