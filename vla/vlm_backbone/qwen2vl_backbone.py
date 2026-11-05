@@ -1,4 +1,5 @@
 import torch
+import cv2
 from PIL import Image
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 
@@ -12,13 +13,14 @@ def load_vlm_model(model_id: str, device: str = "cpu"):
     processor = AutoProcessor.from_pretrained(model_id)
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         model_id,
-        torch_dtype=torch.float32,
+        torch_dtype=torch.bfloat16,
         device_map="cpu",
+        low_cpu_mem_usage=True,
         attn_implementation="eager"
     )
-    return processor, model
+    return model, processor
 
-def run_vlm_inference(processor, model, image, prompt_text:str):
+def run_vlm_inference(model, processor, image, prompt_text:str):
     """
     Run single-image VLM inference.
     :param processor: vision-language processor
@@ -41,7 +43,13 @@ def run_vlm_inference(processor, model, image, prompt_text:str):
     ).to("cpu", dtype=torch.float32)
 
     with torch.no_grad():
-        output = model.generate(**inputs, max_new_tokens=200)
+        output = model.generate(
+            **inputs,
+            max_new_tokens=1024,
+            do_sample=True,
+            temperature=0.1,
+            repetition_penalty=1.05
+        )
     
     # Decode raw model output
     full_result = processor.decode(output[0], skip_special_tokens=True)
@@ -52,4 +60,56 @@ def run_vlm_inference(processor, model, image, prompt_text:str):
     else:
         result = full_result
 
+    return result
+
+
+
+def sample_video_frames(video_path: str, num_frames: int = 8):
+    cap = cv2.VideoCapture(video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if total_frames <= 0:
+        cap.release()
+        raise RuntimeError("Cannot read video or video has zero frames")
+    
+    sample_indices = [int(i * total_frames / num_frames) for i in range(num_frames)]
+    frame_list = []
+    for idx in sample_indices:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        ret, frame = cap.read()
+        if not ret:
+            continue
+        # OpenCV loads frames in BGR order; Qwen2-VL expects RGB format
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(frame_rgb)
+        frame_list.append(pil_img)
+    cap.release()
+    return frame_list
+
+def run_video_inference(model, processor, video_path: str, prompt: str, num_frames=8):
+    # 1. Sample frames from the input video
+    frames = sample_video_frames(video_path, num_frames)
+    
+    for frame in frames:
+        frame.thumbnail((512, 512))
+        
+    content = []
+    for _ in frames:
+        content.append({"type": "image"})
+    content.append({"type": "text", "text": prompt})
+
+    messages = [{"role": "user", "content": content}]
+    
+    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    # Feed video frames into processor, use videos argument for temporal video input
+    inputs = processor(text=[text], images=frames, return_tensors="pt").to(model.device)
+
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            max_new_tokens=1024,
+            do_sample=True,
+            temperature=0.1,
+            repetition_penalty=1.05
+        )
+    result = processor.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
     return result
