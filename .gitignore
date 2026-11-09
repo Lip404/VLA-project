@@ -232,3 +232,4 @@ robosuite/
 *.yml
 
 weights/
+outputs/
