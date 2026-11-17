@@ -87,3 +87,29 @@ def parse_video_behavior(raw_model_output: str) -> tuple[VideoBehaviorRecord | N
             return None, f"Invalid action name: {action_item.action}. Valid set: {VALID_OBSERVED_ACTIONS}", False
 
     return record, "", (not is_raw_json_valid)
+
+
+def extract_json_array(raw_text: str):
+    """
+    Extract and parse JSON array [...] from model raw output string.
+    Used for System2 subtask planner output.
+    :param raw_text: full raw output string from model
+    :return: python list of subtasks
+    :raises json.JSONDecodeError: when cannot parse valid json array
+    """
+    # Strip assistant prefix leftover after skip_special_tokens
+    if "assistant" in raw_text:
+        candidate = raw_text.split("assistant")[-1].strip()
+    else:
+        candidate = raw_text.strip()
+
+    # Locate first '[' and last ']'
+    left_idx = candidate.find("[")
+    right_idx = candidate.rfind("]")
+    if left_idx != -1 and right_idx != -1 and right_idx > left_idx:
+        json_candidate = candidate[left_idx:right_idx + 1]
+    else:
+        json_candidate = candidate
+
+    parsed_list = json.loads(json_candidate)
+    return parsed_list

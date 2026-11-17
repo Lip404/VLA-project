@@ -2,6 +2,7 @@ import torch
 import cv2
 from PIL import Image
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
+from peft import PeftModel
 
 def load_vlm_model(model_id: str, device: str = "cpu"):
     """
@@ -113,3 +114,48 @@ def run_video_inference(model, processor, video_path: str, prompt: str, num_fram
         )
     result = processor.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
     return result
+
+    
+class Qwen2VLBackbone:
+    """
+    Wrapper class for Qwen2‑VL with optional LoRA adapter.
+    Reuses existing load_vlm_model and run_vlm_inference functions.
+    """
+    def __init__(self, model_name: str, lora_path: str = None, device: str = "cpu"):
+        """
+        Initialize base model, processor and optionally load LoRA adapter.
+        :param model_name: base vlm model name or local path
+        :param lora_path: path to lora adapter weights, set None for base model only
+        :param device: inference device
+        """
+        self.model_name = model_name
+        self.lora_path = lora_path
+        self.device = device
+
+        # Load base model and processor from existing helper
+        self.model, self.processor = load_vlm_model(model_id=model_name, device=device)
+
+        # Attach LoRA adapter if lora_path is provided
+        if self.lora_path is not None:
+            self.model = PeftModel.from_pretrained(self.model, self.lora_path)
+
+    def infer_single(self, image_path: str, prompt_text: str, max_new_tokens: int = 512, temperature: float = 0.1):
+        """
+        Run single image inference given image file path and prompt string.
+        :param image_path: local disk path to input image
+        :param prompt_text: user text prompt
+        :param max_new_tokens: maximum new generated tokens
+        :param temperature: sampling temperature
+        :return: raw cleaned model output string
+        """
+        # Open image from disk
+        image = Image.open(image_path).convert("RGB")
+
+        # Call existing inference helper function
+        output_str = run_vlm_inference(
+            model=self.model,
+            processor=self.processor,
+            image=image,
+            prompt_text=prompt_text
+        )
+        return output_str
