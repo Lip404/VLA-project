@@ -50,7 +50,10 @@ def system2_step(
                 image_path=image_path,
                 prompt_text=filled_prompt
             )
-        pred_subtasks = extract_json_array(model_raw_output)
+        if model_raw_output is not None:
+            pred_subtasks = extract_json_array(model_raw_output)
+        else:
+            pred_subtasks = []
     except Exception as e:
         parse_error = str(e)
 
