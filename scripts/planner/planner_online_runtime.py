@@ -8,6 +8,7 @@ No internal state mutation inside this module.
 Trace output schema is fully compatible with planner_offline_replay offline trace.
 """
 from typing import List, Dict, Optional, Any
+from PIL import Image
 from vla.vlm_backbone.qwen2vl_backbone import Qwen2VLBackbone
 from vla.structured_planner.model_output_json_parser import extract_json_array
 
@@ -18,22 +19,24 @@ def system2_step(
     high_instruction: str,
     todo_subtasks: List[str],
     done_subtasks: List[str],
-    prompt_template: str
+    prompt_template: str,
+    image: Optional[Image.Image] = None
 ) -> Dict[str, Any]:
+
     """
     Single step of System‑2 hierarchical planner for real‑sim environment.
-
     Args:
         backbone: loaded Qwen2‑VL backbone instance (with LoRA)
-        image_path: path to current observation image from simulator
+        image_path: path to current observation image from simulator (fallback, disk file)
         high_instruction: top‑level natural‑language task instruction
         todo_subtasks: pending subtask list, maintained by upper sim_loop (READ‑ONLY inside function)
         done_subtasks: finished subtask list, maintained by upper sim_loop (READ‑ONLY inside function)
         prompt_template: prompt template with {instruction}, {done_subtasks} placeholders
-
+        image: in‑memory PIL RGB image from simulator observation, higher priority than image_path
     Returns:
         result dict, includes trace_record compatible with offline trace format
     """
+    
     done_subtasks_text = ", ".join(done_subtasks)
     filled_prompt = prompt_template.format(
         instruction=high_instruction,
@@ -45,11 +48,12 @@ def system2_step(
     parse_error: Optional[str] = None
 
     try:
-        if image_path is not None:
-            model_raw_output = backbone.infer_single(
-                image_path=image_path,
-                prompt_text=filled_prompt
-            )
+        # Prioritize in‑memory PIL image for simulator, fallback to disk image_path
+        if image is not None:
+            model_raw_output = backbone.infer_single_pil(pil_image=image, prompt_text=filled_prompt)
+        elif image_path is not None:
+            model_raw_output = backbone.infer_single(image_path=image_path, prompt_text=filled_prompt)
+
         if model_raw_output is not None:
             pred_subtasks = extract_json_array(model_raw_output)
         else:

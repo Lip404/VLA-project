@@ -159,3 +159,19 @@ class Qwen2VLBackbone:
             prompt_text=prompt_text
         )
         return output_str
+
+    def infer_single_pil(self, pil_image: Image.Image, prompt_text: str):
+        """
+        Run single‑image inference from in‑memory PIL Image object (no disk IO).
+        Suitable for simulator runtime observation.
+        :param pil_image: PIL.Image RGB image object from simulator observation
+        :param prompt_text: user text prompt
+        :return: raw cleaned model output string
+        """
+        output_str = run_vlm_inference(
+            model=self.model,
+            processor=self.processor,
+            image=pil_image,
+            prompt_text=prompt_text
+        )
+        return output_str

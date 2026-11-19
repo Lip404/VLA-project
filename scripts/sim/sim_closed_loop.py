@@ -6,7 +6,7 @@ Trace output format compatible with offline planner_offline_replay trace.
 import json
 import os
 from typing import List, Dict
-
+from PIL import Image
 # local import
 from vla.vlm_backbone.qwen2vl_backbone import Qwen2VLBackbone
 from scripts.planner.planner_online_runtime import system2_step
@@ -26,7 +26,7 @@ def main():
     HIGH_LEVEL_INSTRUCTION = "Pick the tongs from the counter and place it in the cabinet."
     OUTPUT_TRACE_PATH = "./outputs/sim_trace.jsonl"
     MAX_EPISODE_STEP = 80  # Hard upper‑limit, avoid infinite simulation loop
-
+    
     # Prompt template consistent with rolling_closed_planner offline script
     PROMPT_TEMPLATE = (
         "Given image observation. High‑level task: {instruction}. "
@@ -62,11 +62,18 @@ def main():
     )
 
     print("Start real‑sim closed‑loop ...")
+
     for step_idx in range(MAX_EPISODE_STEP):
         # -------- Step1: call System2 planner --------
+        pil_obs = None
+        # Convert numpy rgb observation to PIL image if observation available
+        if current_rgb_image is not None:
+            pil_obs = Image.fromarray(current_rgb_image)
+
         s2_result = system2_step(
             backbone=backbone,
             image_path=None,
+            image=pil_obs,
             high_instruction=HIGH_LEVEL_INSTRUCTION,
             todo_subtasks=todo_subtasks,
             done_subtasks=done_subtasks,
