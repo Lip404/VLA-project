@@ -99,6 +99,8 @@ obs = env.reset()
 
 Useful `create_env` arguments: `env_name`, `robots`, `seed`, `render_onscreen`, `camera_names`, `camera_widths`, `camera_heights`, `split`.
 
+`camera_widths` / `camera_heights` accept a single integer that applies to all cameras, or a per-camera list aligned with `camera_names`.
+
 ### Smoke test: environment reset
 
 This is the minimal check that the simulator is fully functional. Save it as a temporary script (e.g. `/tmp/check_env.py`) and run it inside `robocasa_env`:
@@ -148,12 +150,39 @@ Image arrays are `(height, width, 3)`, `dtype=uint8`, and are **vertically flipp
 
 ```bash
 conda activate robocasa_env
-python scripts/debug/check_render.py
 ```
 
-Run it from the project root. The three PNGs (`robot0_agentview_left_image.png`, `robot0_agentview_right_image.png`, `robot0_eye_in_hand_image.png`) are written into the current working directory.
+```bash
+mkdir -p outputs/render_check
+```
+
+```bash
+cd outputs/render_check
+python ../../scripts/debug/check_render.py
+```
+
+Run it from a directory you do not mind polluting: the three PNGs (`robot0_agentview_left_image.png`, `robot0_agentview_right_image.png`, `robot0_eye_in_hand_image.png`) are written into the current working directory. `outputs/` is gitignored, so this is a safe place.
 
 A mean pixel value in the tens-to-~150 range means the scene renders correctly; a value near zero means a black frame.
+
+**Camera resolution.** The default is `128 × 128`, which is too coarse for VLM input — the wrist view loses most of the grasp geometry. `scripts/debug/check_render.py` requests `256 × 256` via `camera_widths` / `camera_heights`:
+
+```python
+env = create_env(
+    env_name="PickPlaceCounterToCabinet",
+    robots=["PandaOmron"],
+    seed=0,
+    camera_widths=256,
+    camera_heights=256,
+)
+```
+
+Verified on this machine at two resolutions — near-identical mean pixel values mean the scene content is unchanged, only the sampling density is:
+
+| Resolution | left / right / wrist mean pixel |
+| --- | --- |
+| 128 × 128 | 97.07 / 76.96 / 92.18 |
+| 256 × 256 | 97.09 / 76.87 / 92.17 |
 
 ## Project Status
 
@@ -175,7 +204,7 @@ A mean pixel value in the tens-to-~150 range means the scene renders correctly; 
 - ✅ `robocasa_env` conda environment built, robosuite 1.5.2 + robocasa 1.0.1 installed as editable packages
 - ✅ ~23 GB of kitchen assets downloaded (textures, generative textures, fixtures, objaverse, aigen objects, lightwheel objects)
 - ✅ `create_env` + `env.reset()` verified working (see **Smoke test** section above)
-- ✅ Camera rendering verified through `scripts/debug/check_render.py`
+- ✅ Camera rendering verified at 128 × 128 and 256 × 256 through `scripts/debug/check_render.py`
 
 ### ⏳ Work-in-Progress / Todo
 
@@ -345,7 +374,7 @@ python scripts/eval/val_batch_infer_system2.py
 
 ```bash
 conda activate robocasa_env
-python scripts/debug/check_render.py       # optional, saves 3 camera PNGs
+python scripts/debug/check_render.py       # writes 3 camera PNGs into cwd
 ```
 
 For the minimal `create_env` + `env.reset()` check, run the snippet in **Smoke test: environment reset** above.
@@ -395,6 +424,7 @@ It supports two modes:
 | `Namespace robocasa not found` when using `gym.make` | robocasa registers into its own registry | call `create_env` from `robocasa.utils.env_utils` instead of `gym.make` |
 | `ModuleNotFoundError: robosuite` in another env | robosuite only exists in `robocasa_env` | `conda activate robocasa_env` first |
 | `No such file: setup_macros.py` | looks for single-level `robosuite/scripts/`, real path is `robosuite/robosuite/scripts/` | run `python robosuite/robosuite/scripts/setup_macros.py` |
+| camera images come out `128 × 128`, too small for a VLM | robosuite default camera resolution | pass `camera_widths` / `camera_heights` to `create_env` |
 
 Inspect the actual registered environment names with:
 
@@ -414,7 +444,7 @@ print(len(list(ALL_KITCHEN_ENVIRONMENTS)))
 - `__pycache__` folders are ignored automatically
 - In `robocasa_env`, always use `python -m pip` instead of bare `pip`
 - Simulator verification lives in `scripts/debug/check_render.py`; the minimal env-reset check is kept as an inline snippet in this README
-- Running `scripts/debug/check_render.py` writes the three camera PNGs into the current working directory — delete them or keep them out of git
+- Running `scripts/debug/check_render.py` writes the three camera PNGs into the current working directory — `outputs/render_check/` is the intended place, and it is gitignored
 - This project is still work-in-progress, code and workflow keep updating
 - `rolling_closed_planner.py` is purely an **offline replay evaluation tool**, not the runtime for real simulator.
 

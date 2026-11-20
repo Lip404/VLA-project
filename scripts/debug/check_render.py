@@ -2,7 +2,13 @@ import imageio
 import robocasa
 from robocasa.utils.env_utils import create_env
 
-env = create_env(env_name="PickPlaceCounterToCabinet", robots=["PandaOmron"], seed=0)
+env = create_env(
+    env_name="PickPlaceCounterToCabinet",
+    robots=["PandaOmron"],
+    seed=0,
+    camera_widths=256,
+    camera_heights=256,
+)
 obs = env.reset()
 
 # MuJoCo renders images vertically flipped; reverse rows before saving
