@@ -232,4 +232,8 @@ robosuite/
 *.yml
 
 weights/
+outputs/old_stuff/
+old_stuff/
 outputs/
+exported_frames/
+robocasa/models/assets/
