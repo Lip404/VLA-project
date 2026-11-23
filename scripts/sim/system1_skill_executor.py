@@ -524,14 +524,22 @@ def _skill_pick(env, obs, skill_config, budget):
         return False, obs
 
     start_z = float(obj[2])
+    # Hover above the centre by a fraction of the object's own half height: a fixed 5 cm
+    # offset leaves the fingers closing in mid-air above a short object.
+    half_z = _object_half_z(env)
+    cap = None if half_z is None else max(0.01, half_z - 0.01)
+    if cap is not None:
+        print(f"[system1] PickObject: object half height {half_z:.3f} m, hover cap {cap:.3f} m")
+
     for daz, yaw_steps, offset in GRASP_PLANS:
+        hover = offset if cap is None else min(offset, cap)
         obs = _yaw_gripper(env, obs, daz, yaw_steps)
         frame, obs = _action_frame(env, obs)
         obj = _task_object_pos(obs, env, name)
         if obj is None:
             print("[system1] PickObject failed: lost the object mid attempt")
             return False, obs
-        target = obj + np.array([0.0, 0.0, offset])
+        target = obj + np.array([0.0, 0.0, hover])
 
         # Counters carry fixtures (toaster ovens, microwaves) taller than the object,
         # so travel first at a clearance height, then come straight down onto it.
@@ -542,7 +550,7 @@ def _skill_pick(env, obs, skill_config, budget):
         if not reached and gap > APPROACH_ACCEPT:
             print(
                 f"[system1] PickObject attempt failed: yaw {daz:+.1f}x{yaw_steps} "
-                f"offset {offset:.2f} reach timeout at {gap:.3f} m"
+                f"offset {hover:.2f} reach timeout at {gap:.3f} m"
             )
             obs = _open_gripper(env, obs, CLOSE_STEPS)
             continue
@@ -558,13 +566,13 @@ def _skill_pick(env, obs, skill_config, budget):
         qpos = np.round(np.asarray(obs["robot0_gripper_qpos"], dtype=np.float64), 4)
         if rise > MIN_GRASP_RISE:
             print(
-                f"[system1] PickObject ok: yaw {daz:+.1f}x{yaw_steps} offset {offset:.2f} "
+                f"[system1] PickObject ok: yaw {daz:+.1f}x{yaw_steps} offset {hover:.2f} "
                 f"gap {gap:.3f} rise {rise:+.3f} m qpos {qpos}"
             )
             return True, obs
         print(
             f"[system1] PickObject attempt failed: yaw {daz:+.1f}x{yaw_steps} "
-            f"offset {offset:.2f} gap {gap:.3f} rise {rise:+.3f} m qpos {qpos}"
+            f"offset {hover:.2f} gap {gap:.3f} rise {rise:+.3f} m qpos {qpos}"
         )
         obs = _open_gripper(env, obs, CLOSE_STEPS)
 
@@ -637,6 +645,22 @@ def _held_dangle(obs):
     """How far the held object hangs below the eef (positive when the object is lower)."""
     pos = _task_object_pos(obs)
     return None if pos is None else float(_eef_pos(obs)[2] - pos[2])
+
+
+def _object_half_z(env):
+    """Half height of the task object, from `size` (full extents) or the bbox fallback."""
+    pool = getattr(env, "objects", None)
+    obj = pool.get(TASK_OBJECT_KEY) if isinstance(pool, dict) else None
+    if obj is None:
+        return None
+    size = np.asarray(getattr(obj, "size", []), dtype=np.float64).ravel()
+    if size.size >= 3:
+        return float(abs(size[2]) / 2.0)
+    try:
+        pts = np.asarray(obj.get_bbox_points(), dtype=np.float64).reshape(-1, 3)
+        return float((pts[:, 2].max() - pts[:, 2].min()) / 2.0)
+    except Exception:
+        return None
 
 
 def _skill_place(env, obs, skill_config, budget):

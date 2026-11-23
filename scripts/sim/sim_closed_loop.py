@@ -37,8 +37,22 @@ def save_trace(trace_list: List[Dict], output_path: str):
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def cabinet_center(env):
+    """World position of the task cabinet's interior centre, or None when unavailable."""
+    cab = getattr(env, "cab", None)
+    getter = getattr(cab, "get_int_sites", None)
+    if cab is None or not callable(getter):
+        return None
+    try:
+        corners = next(iter(getter(relative=False).values()))
+        pts = np.stack([np.asarray(c, float).ravel()[:3] for c in corners])
+        return (pts.min(axis=0) + pts.max(axis=0)) / 2.0
+    except Exception:
+        return None
+
+
 def build_env(seed: int = 0, camera_size: int = 256, max_attempts: int = 12, reach: float = 0.55):
-    """RoboCasa env with a sample whose object is inside arm reach."""
+    """RoboCasa env with a sample whose object AND cabinet are inside arm reach."""
     env = create_env(
         env_name="PickPlaceCounterToCabinet",
         robots=["PandaOmron"],
@@ -49,16 +63,15 @@ def build_env(seed: int = 0, camera_size: int = 256, max_attempts: int = 12, rea
     obs = None
     for attempt in range(max_attempts):
         obs = env.reset()
-        d = float(
-            np.linalg.norm(
-                np.asarray(obs["obj_pos"], float)[:2] - np.asarray(obs["robot0_eef_pos"], float)[:2]
-            )
-        )
-        print(f"[env] attempt {attempt}: object is {d:.2f} m from the eef")
-        if d <= reach:
+        eef = np.asarray(obs["robot0_eef_pos"], float)[:3]
+        d = float(np.linalg.norm(np.asarray(obs["obj_pos"], float)[:2] - eef[:2]))
+        cab = cabinet_center(env)
+        dc = float(np.linalg.norm(cab - eef)) if cab is not None else float("inf")
+        print(f"[env] attempt {attempt}: object is {d:.2f} m, cabinet is {dc:.2f} m from the eef")
+        if d <= reach and dc <= reach:
             break
     else:
-        print(f"[env] WARNING: no sample within {reach} m; the arm cannot reach the object")
+        print(f"[env] WARNING: no sample within {reach} m for both the object and the cabinet")
     env._last_obs = obs
     return env, obs
 
