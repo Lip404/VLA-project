@@ -27,7 +27,7 @@ The backbone vision-language model we use is **Qwen2-VL**, and we build an offli
 - **Offline rolling closed-loop replay evaluator** (`scripts/planner/rolling_closed_planner.py`): state-aware System-2 offline simulation framework
   > ⚠️ Warning: embedding-cosine-similarity-based subtask completion judge is **offline-only simulation logic**. This logic will be completely removed when connecting to real RoboCasa simulator; real subtask done flag shall come from simulator environment state, not VLM semantic inference.
 - Configurable prompt template, trace log export for offline closed-loop evaluation
-- **Real-simulator System-1 executor** (`scripts/sim/system1_skill_executor.py`): five heuristic RoboCasa atomic skills (pick / place / navigate / open door / close door) that write directly into the OSC pose, gripper, base and torso action channels
+- **Real-simulator System-1 executor** (`scripts/sim/system1_skill_executor.py`): five heuristic RoboCasa atomic skills (pick / place / navigate / open door / close door) that write directly into the OSC pose, gripper, base and torso action channels. Pick adapts its grasp hover to the object's own half height and succeeds on 4/4 sampled layouts; place releases at the interior centre of the task cabinet
 - **Real-simulator closed loop** (`scripts/sim/sim_closed_loop.py`): System2 plan → subtask-to-skill mapper → System1 execution → `env.step`, with the episode verdict taken from `env._check_success()` instead of VLM inference
 
 ## Environment & Dependencies
@@ -202,6 +202,11 @@ Everything below was measured on this machine inside `robocasa_env`; it saves re
 | Cabinet geometry | `env.cab.get_int_sites(relative=False)` returns the interior box as `(p0, px, py, pz)`; hinge doors start **already open** (joint `qpos` at its limit) |
 | Base motion | `base_pos` and `robot0_base` are stale `[10, 10, 0]` placeholders, the robot has **no free joint**, and torso qpos is already at its lower limit — only the velocity dims `[7:9]` can move the base |
 | Gripper state | fully open `±0.036`, empty closed `≈ 0`, **holding the tongs `≈ ±0.03`** — this is the cheapest grasp check, independent of the object pose |
+| Held object hang | the grasped object rides **0.08–0.22 m below the eef**, depending on which grasp plan won; any push height must be measured at runtime, never hardcoded |
+| Wrist rotation rates | `daz` (`action[5]`) yaws at ~3.5°/step, `dax` (`action[3]`) at ~9.7°/step, `day` (`action[4]`) pitches at ~2.5°/step (per unit command, measured on 10-step pulses) — a quarter turn is ~9 steps on `dax` |
+| Object size semantics | `obj.size` is the **full** extent (halve it); `get_bbox_points()` already returns half extents. The task object changes per episode (`7.4 × 7.3 × 20.8 cm` vs `6.2 × 4.7 × 6.5 cm`), both a touch wider than the 7.2 cm gripper span |
+| Grasp hover | the descent point must lie inside the object body: `min(0.05, half_z − 0.01)`. A fixed 5 cm hover closes the fingers in mid-air above any object shorter than 12 cm |
+| Vertical reach | the arm tops out around `1.53 m` in the counter-standing pose but reaches `1.69 m` once the base has rotated toward the cabinet — keep commanded heights below `1.69 m` |
 | Contact blocking | counters carry fixtures (toaster ovens, microwaves) taller than the object, so a straight diagonal approach stalls mid-air; travel at a clearance height first, then descend vertically |
 
 ## Project Status
@@ -231,17 +236,19 @@ Everything below was measured on this machine inside `robocasa_env`; it saves re
 - ✅ Five atomic skills implemented in `scripts/sim/system1_skill_executor.py`: `PickObject`, `PlaceObject`, `NavigateTo`, `OpenSingleDoor`, `CloseSingleDoor`
 - ✅ Action channel resolved: `action_dim == 12` → arm `[0:6]`, gripper `[6]`, mobile base `[7:9]`, torso `[10:]`; `OSC_POSE` commands normalized to `output_max = 0.05 m`
 - ✅ Action frame calibrated at runtime (`_action_frame`): the OSC frame is `base`-relative and the base orientation changes per reset, so a 2×2 command→world rotation is measured before every move
-- ✅ `PickObject` verified in closed loop: `yaw +0.5x10, offset 0.05 → rise +0.117 m`, gripper `qpos [0.0344, -0.0306]` (a held object keeps the fingers at ≈ ±0.03)
-- ✅ `scripts/sim/sim_closed_loop.py` runs System2 → mapper → System1 → `env.step` end to end on `PickPlaceCounterToCabinet`; the episode verdict comes from `env._check_success()`
-- ⚠️ `PlaceObject` lifts and positions the object at the cabinet opening but loses it on the frame lip during the final push — see **Known Limitations (System 1)**
+- ✅ `PickObject` verified on **4/4 seeds** (`rise +0.117 / +0.142 / +0.124 / +0.142 m`), gripper `qpos ≈ ±0.03` while holding
+- ✅ Grasp hover is derived from the object itself: `min(0.05, half_z − 0.01)`. The task object changes per episode (bbox `7.4 × 7.3 × 20.8 cm` on one layout, `6.2 × 4.7 × 6.5 cm` on another), and a fixed 5 cm hover closes the fingers in mid-air above any object shorter than 12 cm — which is why pick used to work on exactly one layout
+- ✅ `PlaceObject` verified on **1/4 seeds**: release at the interior centre, push height compensated by the measured hang, vertical lift before retreat; the object settles at `z = 1.498 m` on a `1.46 m` shelf with `obj_inside_of` and `gripper_obj_far` both true
+- ✅ `scripts/sim/sim_closed_loop.py` runs System2 → mapper → System1 → `env.step` end to end on `PickPlaceCounterToCabinet`; the episode verdict comes from `env._check_success()`, and `build_env` now samples layouts where **both** the object and the cabinet are within arm reach
+- ⚠️ `PlaceObject` fails on the other sampled layouts: the wrist hits the door frame and the eef stops 0.12–0.32 m short of the interior centre — see **Known Limitations (System 1)**
 
 ### ⏳ Work-in-Progress / Todo
 
-- ⏳ `PlaceObject` insertion: the object must be held at eef height (side grasp or wrist pitch), or the insertion height must be compensated by the measured dangle
-- ⏳ Mobile-base transport for layouts where the object and `env.cab` are more than one arm span apart
+- ⏳ Horizontal side grasp: approach the object from the side so it is held **in front of** the fingers rather than below them. This is the only way to push it past a door frame the wrist cannot enter (see the pitch measurement in Known Limitations)
+- ⏳ Mobile-base transport for layouts where the object and `env.cab` are more than one arm span apart (the base dims `[7:9]` do not converge under closed-loop control)
 - ⏳ Extend the mapper vocabulary (`开出抽屉`, `user picks tongs` without the `robot ` prefix)
 - ⏳ Quantitative ablation study for hierarchical planning
-- ⏳ Collect simulation-run failure cases for further model iteration
+- ⏳ Collect simulation-run failure cases for further model iteration (per-step `obj` / `eef` / `inside` / `far` logging is already in place)
 
 ## Project Structure
 
@@ -450,8 +457,8 @@ It supports two modes:
 
 1. ✅ System-1 glue adapter: System-2 natural-language subtask → RoboCasa heuristic atomic skills (`scripts/planner/subtask_to_robocasa_skill_mapper.py`)
 2. ✅ Real-simulator runtime: `scripts/sim/sim_closed_loop.py` replaces the offline embedding completion judge with `env._check_success()`
-3. ✅ Full System-2 + System-1 closed loop inside RoboCasa (pick verified end to end)
-4. Finish `PlaceObject` insertion: grasp the object at eef height, or compensate the insertion height by the measured dangle
+3. ✅ Full System-2 + System-1 closed loop inside RoboCasa: `PickObject` 4/4 sampled layouts, `PlaceObject` 1/4 (bounded by the door frame)
+4. Horizontal side grasp so the object is held in front of the fingers instead of below them — wrist pitch cannot do it, gravity re-levels a top-grasped object
 5. Mobile-base transport so layouts beyond one arm span are solvable
 6. Iterate System-2 LoRA fine-tuning based on closed-loop bad-case traces
 7. Run ablation experiments and collect quantitative simulation results
@@ -482,11 +489,13 @@ print(len(list(ALL_KITCHEN_ENVIRONMENTS)))
 
 ## Known Limitations (System 1)
 
-- `PlaceObject` reaches the cabinet opening and then drops the object on the frame lip during the final push. The tongs hangs about **0.22 m below the eef** (its grip site sits at eef height), so its body arrives at the opening lower than the commanded end pose. Fixing it requires a grasp that holds the object at eef height (side grasp / wrist pitch) or an insertion height compensated by the measured dangle.
-- Mobile-base transport is not implemented. Episodes are therefore reset onto layouts where both the object and `env.cab` are inside one arm span (verified on 12/12 resets of `PickPlaceCounterToCabinet`, `obj→eef` 0.19–0.29 m, `cab→eef` 0.27–0.55 m).
+- `PlaceObject` succeeds only on layouts where the wrist can get through the door frame. Across sampled `PickPlaceCounterToCabinet` layouts the interior centre sits 0.44–0.47 m from the eef, and the `after push` residual is **0.134 m** on the passing layout versus **0.115 / 0.321 / 0.310 m** on the failing ones; on one layout the eef even ended 13.5 cm *above* its commanded height, the signature of contact with the cabinet face. The held object protrudes only ~6 cm past the fingers, so the reachable depth decides the outcome: it rests on the shelf when the release point clears the lip, and falls back onto the counter when it does not.
+- The release height itself is correct: `target_z = lo_z + half_z + 0.02` puts the object bottom 2 cm above the shelf, and the passing run settles at `z = 1.498 m` on a `1.46 m` shelf. An earlier hypothesis that the object was suspended 8 cm in mid-air was wrong — `obj.size` holds the **full** extents, so it has to be halved before use.
+- Wrist pitch is not a fix. `day` (`action[4]`) rotates the wrist at ~2.5°/step, but rotating while holding a top grasp lets the object swing back under the fingers: after ~30° of rotation the measured `obj − eef` offset goes from `[0.226, 0.053, −0.293]` to `[0.018, −0.007, −0.080]`. Gravity re-levels the object, so it never ends up in front of the hand. Getting the object ahead of the fingers requires a side grasp, i.e. a rewrite of the pick approach rather than a place tweak.
+- Mobile-base transport is not implemented. Episodes are reset onto layouts where both the object and `env.cab` are inside `0.55 m` of the eef (`build_env` checks both, `max_attempts` resets). Note this filter is necessary but not sufficient: a 0.45 m cabinet still failed, because the blocker is the door frame, not the distance.
 - `OpenSingleDoor` / `CloseSingleDoor` never ran successfully: the door handle cannot be resolved through the currently known RoboCasa attributes, and `_door_diagnostics()` prints every candidate name it tried. Cabinet doors are already open at reset, so this does not block the pick-and-place demo.
 - The mapper vocabulary does not cover `开出抽屉` or `user picks tongs` (a missing `robot ` prefix), and those subtasks abort the episode before System 1 is reached.
-- System2 currently plans a single subtask (`robot picks up tongs`) for this task, so the loop ends after the pick and the environment verdict stays `False`.
+- System2 currently plans a single subtask (`robot picks up tongs`) for this task, so the closed loop ends after the pick and the environment verdict stays `False` — the pick-and-place runs in this report call System 1 directly, two subtasks in sequence.
 
 ## Notes
 
