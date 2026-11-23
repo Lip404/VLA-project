@@ -89,6 +89,9 @@ PLACE_ENTRY_BACK = 0.35     # metres held back from the interior centre before p
 PLACE_RETREAT = 0.30        # metres withdrawn after release; env success needs 0.25
 PLACE_YAW = 0.5             # daz per step used to line the object up with the opening
 PLACE_YAW_STEPS = 10        # steps of PLACE_YAW before the push, about a quarter turn
+PLACE_DANGLE_SLACK = 0.0    # metres added to the measured hang when compensating the push height
+PLACE_RELEASE_LIFT = 0.04   # metres lifted vertically after release, before retreating
+PLACE_DEPTH_FRAC = 0.5      # fraction of the interior depth used as the release point (0.5 = centre)
 
 SUPPORTED_SKILLS = ("PickObject", "PlaceObject", "NavigateTo", "OpenSingleDoor", "CloseSingleDoor")
 
@@ -577,17 +580,23 @@ def _place_target(env, eef):
         return None
 
     half = np.array([0.05, 0.05, 0.05])
+    bbox_half = None
     pool = getattr(env, "objects", None)
     obj = pool.get(TASK_OBJECT_KEY) if isinstance(pool, dict) else None
     if obj is not None:
+        # obj.size holds the full extents, while get_bbox_points() yields half-extents;
+        # halve `size` so the object is placed with its bottom on the shelf.
+        size = np.asarray(getattr(obj, "size", []), dtype=np.float64).ravel()
+        if size.size >= 3:
+            half = np.abs(size[:3]) / 2.0
         try:
             pts = np.asarray(obj.get_bbox_points(), dtype=np.float64).reshape(-1, 3)
             if pts.shape[0] >= 8:
-                half = (pts.max(axis=0) - pts.min(axis=0)) / 2.0
+                bbox_half = (pts.max(axis=0) - pts.min(axis=0)) / 2.0
         except Exception:
-            size = np.asarray(getattr(obj, "size", half), dtype=np.float64).ravel()
-            if size.size >= 3:
-                half = np.abs(size[:3])
+            bbox_half = None
+        if bbox_half is not None and np.all(size.size < 3):
+            half = bbox_half
 
     eef = np.asarray(eef, dtype=np.float64).ravel()[:3]
     for corners in getter(relative=False).values():
@@ -599,10 +608,19 @@ def _place_target(env, eef):
             margin = (hi - lo) * 0.25
             low, high = lo + margin, hi - margin
             print(f"[system1] PlaceObject: tight region, margin relaxed to {np.round(margin, 3)}")
+        print(
+            f"[system1] PlaceObject: interior lo={np.round(lo, 3).tolist()} "
+            f"hi={np.round(hi, 3).tolist()} half={np.round(half, 3).tolist()} "
+            f"bbox_half={None if bbox_half is None else np.round(bbox_half, 3).tolist()}"
+        )
+        # Aim at the middle of the interior instead of the point nearest the arm: a release
+        # point at the front lip leaves the object balanced on the frame edge, and it rolls
+        # out and falls once the fingers open.
+        xy = low[:2] + (high[:2] - low[:2]) * PLACE_DEPTH_FRAC
         return np.array(
             [
-                np.clip(float(eef[0]), low[0], high[0]),
-                np.clip(float(eef[1]), low[1], high[1]),
+                float(xy[0]),
+                float(xy[1]),
                 np.clip(lo[2] + float(half[2]) + 0.02, low[2], high[2]),
             ]
         )
@@ -613,6 +631,12 @@ def _held_gap(env, obs, point):
     """Distance from the held object to `point`, or None when the pose is unavailable."""
     pos = _task_object_pos(obs)
     return None if pos is None else float(np.linalg.norm(np.asarray(point, dtype=np.float64) - pos))
+
+
+def _held_dangle(obs):
+    """How far the held object hangs below the eef (positive when the object is lower)."""
+    pos = _task_object_pos(obs)
+    return None if pos is None else float(_eef_pos(obs)[2] - pos[2])
 
 
 def _skill_place(env, obs, skill_config, budget):
@@ -636,9 +660,20 @@ def _skill_place(env, obs, skill_config, budget):
         return False, obs
 
     eef = _eef_pos(obs)
-    lift = np.array([eef[0], eef[1], target[2] + 0.06])
+    dangle = _held_dangle(obs)
+    dangle = 0.0 if dangle is None or dangle <= 0.02 else dangle
+    push_z = float(target[2]) + dangle + PLACE_DANGLE_SLACK
+    print(
+        f"[system1] PlaceObject: object hangs {dangle:.3f} m below the eef, "
+        f"push height set to {push_z:.3f} m for an object goal of {target[2]:.3f} m"
+    )
+
+    lift = np.array([eef[0], eef[1], push_z + 0.06])
     _, obs = _move_to(env, obs, lift, GRIPPER_CLOSE, budget // 5, frame=frame)
-    print(f"[system1] PlaceObject: after lift object_gap={_held_gap(env, obs, target)}")
+    print(
+        f"[system1] PlaceObject: after lift eef_z={_eef_pos(obs)[2]:.3f} "
+        f"object_gap={_held_gap(env, obs, target)}"
+    )
 
     # Turn the held object a quarter turn so its long side points into the opening
     # instead of across it, which is what knocks it out of the gripper on the frame.
@@ -649,19 +684,30 @@ def _skill_place(env, obs, skill_config, budget):
     back = back / norm if norm > 1e-6 else np.array([0.0, 1.0])
     entry = target.copy()
     entry[:2] = target[:2] - back * PLACE_ENTRY_BACK
+    entry[2] = push_z
 
     _, obs = _move_to(env, obs, entry, GRIPPER_CLOSE, budget // 5, frame=frame)
     print(f"[system1] PlaceObject: after entry object_gap={_held_gap(env, obs, target)}")
 
-    reached, obs = _move_to(env, obs, target, GRIPPER_CLOSE, budget // 5, frame=frame)
-    gap = float(np.linalg.norm(target - _eef_pos(obs)))
+    push = target.copy()
+    push[2] = push_z
+    reached, obs = _move_to(env, obs, push, GRIPPER_CLOSE, budget // 5, frame=frame)
+    gap = float(np.linalg.norm(push - _eef_pos(obs)))
     if not reached:
-        print(f"[system1] PlaceObject failed: cabinet entry timeout at {gap:.3f} m")
+        print(
+            f"[system1] PlaceObject failed: cabinet entry timeout at {gap:.3f} m "
+            f"eef_z={_eef_pos(obs)[2]:.3f} push_z={push_z:.3f}"
+        )
     print(f"[system1] PlaceObject: after push object_gap={_held_gap(env, obs, target)}")
 
     obs = _open_gripper(env, obs, CLOSE_STEPS)
+    # Lift straight up before retreating: a horizontal withdrawal drags the released
+    # object along the shelf and out through the open door.
+    lift_off = _eef_pos(obs) + np.array([0.0, 0.0, PLACE_RELEASE_LIFT])
+    _, obs = _move_to(env, obs, lift_off, GRIPPER_OPEN, budget // 8, frame=frame)
     retreat = target.copy()
     retreat[:2] = target[:2] - back * PLACE_RETREAT
+    retreat[2] = push_z + PLACE_RELEASE_LIFT
     _, obs = _move_to(env, obs, retreat, GRIPPER_OPEN, budget // 4, frame=frame)
 
     inside = bool(env._check_success())
