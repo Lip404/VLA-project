@@ -25,8 +25,8 @@ from robocasa.utils.env_utils import create_env
 # local imports
 from vla.vlm_backbone.qwen2vl_backbone import Qwen2VLBackbone
 from scripts.planner.planner_online_runtime import system2_step
-from scripts.planner.subtask_to_robocasa_skill_mapper import SubtaskSkillMapper
-from scripts.sim.system1_skill_executor import read_rgb, system1_execute
+from scripts.planner.v0_subtask_rule_mapping import SubtaskSkillMapper
+from scripts.sim.v0_system1_scripted_rules import read_rgb, system1_execute
 
 
 def save_trace(trace_list: List[Dict], output_path: str):
