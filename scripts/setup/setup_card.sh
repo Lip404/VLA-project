@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Bootstrap RoboCasa + GR00T N1.5 (atomic-seen checkpoint) on a rented GPU box.
-# Tested on: matpool, Ubuntu 20.04, conda env "robocasa_env" (Python 3.10), RTX 4090.
+# Tested on: matpool, Ubuntu 20.04, conda env "robocasa_env" (Python 3.10),
+#            RTX 4090 and A100-PCIE-40GB.
 #
 # Usage:
 #   conda create -n robocasa_env python=3.10 && conda activate robocasa_env
@@ -13,8 +14,12 @@
 #         xvfb-run -a -s "-screen 0 1280x1024x24" python your_script.py
 #   - Do NOT install flash-attn: the prebuilt wheels need glibc >= 2.32 and this
 #     image is 2.31. patch_eagle2.py switches the vision backbone to PyTorch SDPA.
+#   - Assets come from HuggingFace mirror, NOT the Box links in upstream robocasa.
+#     The utexas.box.com direct download timed out from rented GPU regions.
 
 set -x
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --------------------------------------------------------------------- apt
 # The nvidia-cuda apt source in this image is frequently out of sync with the
@@ -23,6 +28,11 @@ apt-get update || true
 apt-get install -y libosmesa6-dev libglew-dev libgl1-mesa-glx libglu1-mesa xvfb || true
 
 # --------------------------------------------------------------------- python
+# Official PyPI is the default. The tuna mirror was observed to return
+# "from versions: none" for albumentations==1.4.18 and huggingface_hub<1.0,
+# so do not pin it. If PyPI itself stalls on a large wheel, switch to aliyun:
+#   pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+#   pip config set global.trusted-host mirrors.aliyun.com
 pip install "PyOpenGL==3.1.6"
 pip install torch==2.7.1
 
@@ -33,16 +43,10 @@ cd /root
 [ -d robosuite ] || git clone https://github.com/ARISE-Initiative/robosuite.git
 cd /root/robosuite && pip install -e . --config-settings editable_mode=compat
 
-# --------------------------------------------------------------------- robocasa (from source) + assets
+# --------------------------------------------------------------------- robocasa (from source)
 cd /root
 [ -d robocasa ] || git clone https://github.com/robocasa/robocasa.git
 cd /root/robocasa && pip install -e . --config-settings editable_mode=compat
-
-# The downloader asks "Proceed? (y/n)" on stdin; without the pipe it dies with
-# EOFError: Bad file descriptor and downloads nothing.
-printf 'y\n' | nohup python robocasa/scripts/download_kitchen_assets.py > /root/assets_download.log 2>&1 &
-echo "assets downloading in background (~10 GB zipped -> 23 GB on disk)"
-echo "watch with: tail -f /root/assets_download.log"
 
 # --------------------------------------------------------------------- GR00T fork for GR00T N1.5
 # NOTE: the upstream NVIDIA/Isaac-GR00T repo is the N1.6/N1.7 generation and
@@ -65,11 +69,14 @@ pip install "huggingface_hub<1.0" "diffusers==0.30.2"
 pip uninstall -y flash_attn || true
 
 # Apply the SDPA patches to the vendored Eagle2.5 backbone.
-python "$(dirname "$0")/patch_eagle2.py"
+python "$SCRIPT_DIR/patch_eagle2.py"
 rm -rf /root/.cache/huggingface/modules/transformers_modules
 
+# --------------------------------------------------------------------- assets (HF mirror, not Box)
+python "$SCRIPT_DIR/download_assets_hf.py"
+python "$SCRIPT_DIR/fix_assets_layout_v2.py"
+
 # --------------------------------------------------------------------- weights (7.6 GB)
-# Vastly faster from the card than from a home connection.
 mkdir -p /root/weights
 export HF_ENDPOINT=https://hf-mirror.com
 python - <<'PY'
@@ -111,8 +118,9 @@ Verification steps (run manually):
    print("policy loaded")
    PY
 
-3) one real episode: see docs/GR00T_ONE_EPISODE.md
-   # reference result on 2026-11-25: 70.8 s per episode, success False (expected:
-   # this checkpoint scores 63% on PickPlaceCounterToCabinet, so failures are normal)
+3) one real episode: see docs/GR00T_SETUP_NOTES.md
+   # reference result on 2026-11-27 (A100-PCIE-40GB): episode success True,
+   # 348.6 s per episode. On RTX 4090 (2026-11-25): 70.8 s, success False.
+   # This checkpoint scores 63% on PickPlaceCounterToCabinet, so failures are normal.
 
 EOF

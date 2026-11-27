@@ -1,15 +1,24 @@
-# GR00T N1.5 on a rented GPU box — field notes (2026-11-25)
+# GR00T N1.5 on a rented GPU box — field notes
 
-Status at end of day: simulator runs, GR00T N1.5 `atomic_seen/checkpoint-60000`
-loads, and one real episode of `PickPlaceCounterToCabinet` completed on the card
-(70.8 s, success False — expected, this checkpoint scores 63 % on that task).
+## Status
 
-## Three files
+* **2026-11-25 (RTX 4090, Asia-Pacific region 2)**: simulator runs, checkpoint
+  loads, one episode completes (70.8 s, success False — expected, this checkpoint
+  scores 63 % on that task).
+* **2026-11-27 (A100-PCIE-40GB, region 16)**: full rebuild from the scripts
+  below. Smoke test `obs keys: 32`, `policy loaded`, first episode **success
+  True**, 348.6 s/episode. The 5× slowdown vs the 4090 is not yet diagnosed
+  (CPU llvmpipe rendering vs SDPA inference); measure over several episodes
+  before the full eval run.
+
+## Scripts in `scripts/setup/`
 
 | file | purpose |
 | --- | --- |
 | `setup_card.sh` | rebuilds the whole environment on a fresh instance |
 | `patch_eagle2.py` | removes the flash-attn dependency from the Eagle2.5 backbone |
+| `download_assets_hf.py` | downloads RoboCasa assets from the HF mirror (Box is unreachable) |
+| `fix_assets_layout_v2.py` | moves asset categories into the directories robocasa expects |
 | this file | what broke, why, and how to check |
 
 ## Must-remember facts
@@ -33,13 +42,41 @@ loads, and one real episode of `PickPlaceCounterToCabinet` completed on the card
   exist there. The docs' `scripts/run_eval.py` lives in the GR00T fork, not in
   robocasa.
 
-## Numbers measured today (useful for budgeting)
+## Asset source: HF mirror, not Box
+
+Upstream `download_kitchen_assets.py` pulls six zips from `utexas.box.com`.
+That host timed out after 20 s and transferred 0 B from the rented GPU region
+(front page 302 responds, file CDN does not). The same assets exist on the HF
+mirror; `download_assets_hf.py` uses them:
+
+* dataset `robocasa/robocasa-assets`: `textures.zip`, `generative_textures.zip`,
+  `fixtures.zip`, `objaverse.zip`, `aigen_objs.zip` (≈ 9.9 GB compressed)
+* dataset `nvidia/PhysicalAI-Robotics-Manipulation-Objects-Kitchen-MJCF`:
+  `fixtures_lightwheel/*.zip`, `objects_lightwheel/*.zip` (86 files)
+
+**Layout trap.** The Box zips carry a `fixtures/` and `lightwheel/` wrapper
+level; the HF zips do not. After extraction the fixture categories land at
+`assets/<category>/` and object categories at `objects/<category>/`, but
+robocasa resolves them under `assets/fixtures/<category>/` and
+`objects/lightwheel/<category>/`. `fix_assets_layout_v2.py` merges them into
+the right places; conflicting files are compared byte-by-byte, identical copies
+are removed, real differences are printed as `DIFFER conflict:`.
+
+## pip mirror warning
+
+The tuna PyPI mirror returned `from versions: none` for `albumentations==1.4.18`
+and `huggingface_hub<1.0` even though both exist on PyPI. Official PyPI works.
+Aliyun resolves metadata but stalled mid-wheel once; keep it as a fallback, do
+not pin it. If pip reports missing versions, check `pip config list` first.
+
+## Numbers measured
 
 * weights download on the card: 7.59 GB / 8 files in **2 min 37 s**
-* robocasa assets: 23 GB on disk, 16–19 MB/s
-* one episode (750 control steps, 256×256 × 3 cameras, CPU rendering):
-  **≈ 71 s**
+* HF mirror bandwidth on region 16: ≈ 143 MB/s for model/asset zips
+* robocasa assets: ≈ 23 GB on disk after extraction (10 GB zips stay in
+  `_downloads/` until deleted)
 * model footprint: ~6 GB VRAM, 3 B backbone + 550 M DiT + 201 M transformer
+* 4090 episode: **≈ 71 s**; A100 episode: **348.6 s** (one sample, diagnose)
 
 ## One episode, start to finish
 
@@ -104,10 +141,12 @@ PY
 3. System2 training labels are still free-form ("robot picks up tongs"); they
    must be migrated to the RoboCasa instruction space before the injection test
    can mean anything.
+4. diagnose the A100 348.6 s/episode slowdown before any multi-episode eval.
 
 ## Machine / billing
 
-matpool, Asia-Pacific region 2, instance `wLgEW5`, RTX 4090 24 GB, ¥2.20/h.
-`/mnt` is a 5 GB network disk, too small for weights — only scripts and source
-belong there. The Asia-Pacific region 2 is being retired; on the new region
-rebuild from `setup_card.sh` (weights re-download in under 3 min).
+matpool. Region 2 (instance `wLgEW5`, RTX 4090 24 GB, ¥2.20/h) was retired
+and force-released; region 16 instance `qe84eM`, A100-PCIE-40GB, 12 vCPU,
+90 GB RAM, 200 GB SSD, driver 610.57.04 / CUDA 13.3. `/mnt` is a 5 GB network
+disk, too small for weights — only scripts and source belong there. Rebuild from
+`setup_card.sh`; weights re-download in under 3 min, assets from the HF mirror.
